@@ -1,0 +1,61 @@
+name: Practical 5 - Agentic Text-to-SQL
+
+# Natural-language question -> SQL (LLM) -> read-only validation -> execution -> error feedback / revision
+# -> result analysis -> JSON report. SQLite sales database, qwen2.5-coder:7b served by Ollama on a CPU runner.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PYTHONUNBUFFERED: "1"
+
+jobs:
+  text2sql:
+    name: 5 - Agentic Text-to-SQL
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Install Python dependencies
+        run: |
+          mkdir -p results/text2sql
+          python -m pip install --upgrade pip
+          pip install -r practical-05/text2sql/requirements.txt
+          pip freeze > results/text2sql/requirements.lock.txt
+
+      - name: Install Ollama and pull qwen2.5-coder:7b
+        run: |
+          curl -fsSL https://ollama.com/install.sh | sh
+          if ! curl -sf http://127.0.0.1:11434/ > /dev/null; then
+            nohup ollama serve > ollama.log 2>&1 &
+          fi
+          for i in $(seq 1 60); do curl -sf http://127.0.0.1:11434/ > /dev/null && break; sleep 2; done
+          ollama --version | tee results/text2sql/ollama_version.txt
+          ollama pull qwen2.5-coder:7b
+          ollama list | tee results/text2sql/ollama_list.txt
+
+      - name: Run the Text-to-SQL experiment
+        run: python practical-05/text2sql/run_experiment.py --out results/text2sql
+
+      - name: Record the Ollama runtime state
+        if: always()
+        run: ollama ps | tee results/text2sql/ollama_ps.txt || true
+
+      - name: Publish summary
+        if: always()
+        run: cat results/text2sql/summary.md >> "$GITHUB_STEP_SUMMARY" || true
+
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: practical-05-text2sql
+          path: results/text2sql
+          retention-days: 90
