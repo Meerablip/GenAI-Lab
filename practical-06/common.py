@@ -208,3 +208,34 @@ def write_json(path: Path, data: Any):
 def load_json(path: Path) -> Any:
     with open(path, "r", encoding="utf-8") as f:
         return json.load(f)
+
+
+def to_float(val: Any, default: float = 0.0) -> float:
+    """Robustly parse float from numbers or currency/percentage strings."""
+    if val is None:
+        return default
+    if isinstance(val, (int, float)):
+        return float(val)
+    if isinstance(val, str):
+        cleaned = re.sub(r"[^\d.-]", "", val)
+        try:
+            return float(cleaned)
+        except Exception:
+            return default
+    return default
+
+
+def clean_string_list(items: Any, default: list[str] | None = None) -> list[str]:
+    """Ensure a list of items is cleanly converted to a list of strings."""
+    if not isinstance(items, list):
+        return default or []
+    out = []
+    for item in items:
+        if isinstance(item, str):
+            out.append(item)
+        elif isinstance(item, dict):
+            out.append(item.get("title") or item.get("name") or item.get("pillar") or str(item))
+        else:
+            out.append(str(item))
+    return out or (default or [])
+

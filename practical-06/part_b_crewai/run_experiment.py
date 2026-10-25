@@ -14,7 +14,7 @@ PRAC_DIR = HERE.parent
 if str(PRAC_DIR) not in sys.path:
     sys.path.insert(0, str(PRAC_DIR))
 
-from common import LLMClient, ResourceMonitor, load_json, snapshot_env, write_json
+from common import LLMClient, ResourceMonitor, load_json, snapshot_env, write_json, to_float
 from part_b_crewai.crew_workflow import build_crew
 
 logging.basicConfig(level=logging.INFO, format="[%(asctime)s] %(levelname)s: %(message)s", datefmt="%H:%M:%S")
@@ -53,12 +53,14 @@ def generate_markdown_summary(results: dict) -> str:
         s = item["scenario"]
         fin = item.get("financial_plan", {})
         audit = item.get("final_strategy", {})
-        init_cost = fin.get("total_cost", s["budget_ceiling"])
-        final_cost = audit.get("final_budget", init_cost)
-        var = audit.get("variance", 0.0)
+        ceiling = to_float(s.get("budget_ceiling", 0.0))
+        init_cost = to_float(fin.get("total_cost", ceiling))
+        final_cost = to_float(audit.get("final_budget", init_cost))
+        var = to_float(audit.get("variance", final_cost - ceiling))
+        status = audit.get("approval_status", "APPROVED")
         lines.append(
-            f"| **{s['name']}** | ${s['budget_ceiling']:,.2f} | ${init_cost:,.2f} | "
-            f"${final_cost:,.2f} | ${var:+,.2f} | **{audit.get('approval_status', 'APPROVED')}** |"
+            f"| **{s['name']}** | ${ceiling:,.2f} | ${init_cost:,.2f} | "
+            f"${final_cost:,.2f} | ${var:+,.2f} | **{status}** |"
         )
 
     lines.extend([
@@ -80,12 +82,15 @@ def generate_detailed_reports(results: dict) -> str:
         research = item.get("research_data", {})
         mktg = item.get("content_strategy", {})
 
+        ceiling = to_float(s.get("budget_ceiling", 0.0))
+        final_b = to_float(audit.get("final_budget", fin.get("total_cost", 1.0)))
+
         lines.extend([
             f"## Scenario: {s['name']}",
             f"**Topic**: {s['topic']}  ",
             f"**Audience**: {s['target_audience']}  ",
             f"**Campaign Objective**: {s['campaign_objectives']}  ",
-            f"**Budget Ceiling**: ${s['budget_ceiling']:,.2f} | **Approved Budget**: ${audit.get('final_budget', 0.0):,.2f}  ",
+            f"**Budget Ceiling**: ${ceiling:,.2f} | **Approved Budget**: ${final_b:,.2f}  ",
             f"**Auditor Sign-off**: {audit.get('approval_status', 'APPROVED')}  ",
             f"**Auditor Notes**: _{audit.get('auditor_notes', '')}_  ",
             "",
@@ -104,10 +109,10 @@ def generate_detailed_reports(results: dict) -> str:
             "|:---|---:|---:|",
         ])
         items = audit.get("adjusted_line_items", fin.get("line_items", {}))
-        final_b = audit.get("final_budget", fin.get("total_cost", 1.0))
         for cat, amt in items.items():
-            pct = round((amt / max(1.0, final_b)) * 100, 1)
-            lines.append(f"| {cat.replace('_', ' ').title()} | ${amt:,.2f} | {pct}% |")
+            amt_f = to_float(amt)
+            pct = round((amt_f / max(1.0, final_b)) * 100, 1)
+            lines.append(f"| {cat.replace('_', ' ').title()} | ${amt_f:,.2f} | {pct}% |")
         lines.append(f"| **Total** | **${final_b:,.2f}** | **100.0%** |")
 
         lines.extend([

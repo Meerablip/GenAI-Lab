@@ -4,7 +4,15 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import re
+import sys
 from pathlib import Path
+
+HERE = Path(__file__).resolve().parent
+if str(HERE) not in sys.path:
+    sys.path.insert(0, str(HERE))
+
+from common import to_float
 
 logging.basicConfig(level=logging.INFO, format="[%(asctime)s] %(levelname)s: %(message)s", datefmt="%H:%M:%S")
 logger = logging.getLogger("prac06.compare")
@@ -48,14 +56,14 @@ def compare_runs(part_a_dir: Path, part_b_dir: Path, out_dir: Path):
     for sc_id, item_a in scenarios_a.items():
         item_b = scenarios_b.get(sc_id, {})
         sc = item_a["scenario"]
-        ceiling = sc["budget_ceiling"]
+        ceiling = to_float(sc.get("budget_ceiling", 0.0))
 
         fin_a = item_a["final_state"].get("financial_plan", {})
         strat_a = item_a["final_state"].get("final_strategy", {})
         audit_b = item_b.get("final_strategy", {})
 
-        approved_a = fin_a.get("total_cost", 0.0)
-        approved_b = audit_b.get("final_budget", 0.0)
+        approved_a = to_float(fin_a.get("total_cost", 0.0))
+        approved_b = to_float(audit_b.get("final_budget", 0.0))
 
         entry = {
             "scenario_id": sc_id,

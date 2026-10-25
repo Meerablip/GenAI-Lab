@@ -14,7 +14,7 @@ PRAC_DIR = HERE.parent
 if str(PRAC_DIR) not in sys.path:
     sys.path.insert(0, str(PRAC_DIR))
 
-from common import LLMClient, ResourceMonitor, load_json, snapshot_env, write_json
+from common import LLMClient, ResourceMonitor, load_json, snapshot_env, write_json, to_float
 from part_a_langgraph.state import CampaignState
 from part_a_langgraph.workflow import build_campaign_graph, get_mermaid_diagram
 
@@ -51,11 +51,14 @@ def generate_markdown_summary(results: dict) -> str:
         fin = item["final_state"].get("financial_plan", {})
         rev = item["final_state"].get("review_feedback", {})
         hist = item["final_state"].get("revision_history", [])
-        init_cost = hist[0]["total_cost"] if hist else fin.get("total_cost", 0.0)
+        ceiling = to_float(s.get("budget_ceiling", 0.0))
+        init_cost = to_float(hist[0]["total_cost"]) if hist else to_float(fin.get("total_cost", 0.0))
+        app_cost = to_float(fin.get("total_cost", 0.0))
+        var = to_float(fin.get("variance", 0.0))
         lines.append(
             f"| **{s['name']}** | {s['target_audience'][:30]}... | "
-            f"${s['budget_ceiling']:,.2f} | ${init_cost:,.2f} | ${fin.get('total_cost', 0.0):,.2f} | "
-            f"${fin.get('variance', 0.0):+,.2f} | {item['iterations']} | **{rev.get('status', 'APPROVED')}** |"
+            f"${ceiling:,.2f} | ${init_cost:,.2f} | ${app_cost:,.2f} | "
+            f"${var:+,.2f} | {item['iterations']} | **{rev.get('status', 'APPROVED')}** |"
         )
 
     lines.extend([
@@ -81,12 +84,15 @@ def generate_detailed_reports(results: dict) -> str:
         mktg = item["final_state"].get("content_strategy", {})
         hist = item["final_state"].get("revision_history", [])
 
+        ceiling = to_float(s.get("budget_ceiling", 0.0))
+        total_b = to_float(fin.get("total_cost", 0.0))
+
         lines.extend([
             f"## Scenario: {s['name']}",
             f"**Topic**: {s['topic']}  ",
             f"**Audience**: {s['target_audience']}  ",
             f"**Campaign Objective**: {s['campaign_objectives']}  ",
-            f"**Duration**: {s['duration_weeks']} weeks | **Ceiling**: ${s['budget_ceiling']:,.2f} | **Approved Budget**: ${fin.get('total_cost', 0.0):,.2f}  ",
+            f"**Duration**: {s['duration_weeks']} weeks | **Ceiling**: ${ceiling:,.2f} | **Approved Budget**: ${total_b:,.2f}  ",
             f"**Status**: {strat.get('approval_status', 'APPROVED')} ({item['iterations']} iteration(s))  ",
             "",
             "### 1. Market Research & Strategic Positioning",
@@ -104,9 +110,10 @@ def generate_detailed_reports(results: dict) -> str:
             "|:---|---:|---:|",
         ])
         for cat, amt in fin.get("line_items", {}).items():
-            pct = round((amt / max(1.0, fin.get("total_cost", 1.0))) * 100, 1)
-            lines.append(f"| {cat.replace('_', ' ').title()} | ${amt:,.2f} | {pct}% |")
-        lines.append(f"| **Total** | **${fin.get('total_cost', 0.0):,.2f}** | **100.0%** |")
+            amt_f = to_float(amt)
+            pct = round((amt_f / max(1.0, total_b)) * 100, 1)
+            lines.append(f"| {cat.replace('_', ' ').title()} | ${amt_f:,.2f} | {pct}% |")
+        lines.append(f"| **Total** | **${total_b:,.2f}** | **100.0%** |")
 
         if hist:
             lines.extend([
@@ -114,8 +121,10 @@ def generate_detailed_reports(results: dict) -> str:
                 "### 3. Review & Iterative Audit Log",
             ])
             for h in hist:
-                lines.append(f"- **Iteration {h['iteration']} Rejection**: Total proposed cost was ${h['total_cost']:,.2f} (Variance: +${h['variance']:,.2f}). Directives: {'; '.join(h['directives'])}")
-            lines.append(f"- **Iteration {item['iterations']} Approval**: Revised cost reduced to ${fin.get('total_cost', 0.0):,.2f}, clearing ceiling constraint.")
+                h_cost = to_float(h.get('total_cost', 0.0))
+                h_var = to_float(h.get('variance', 0.0))
+                lines.append(f"- **Iteration {h['iteration']} Rejection**: Total proposed cost was ${h_cost:,.2f} (Variance: +${h_var:,.2f}). Directives: {'; '.join(h['directives'])}")
+            lines.append(f"- **Iteration {item['iterations']} Approval**: Revised cost reduced to ${total_b:,.2f}, clearing ceiling constraint.")
 
         lines.extend([
             "",

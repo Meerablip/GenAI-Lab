@@ -5,7 +5,7 @@ import logging
 import time
 from typing import Any, Dict
 
-from common import LLMClient, extract_json_block
+from common import LLMClient, extract_json_block, to_float, clean_string_list
 from part_a_langgraph.state import CampaignState
 
 logger = logging.getLogger("prac06.langgraph.nodes")
@@ -70,6 +70,14 @@ def research_node(state: CampaignState, llm: LLMClient) -> Dict[str, Any]:
             ],
         }
 
+    if data and isinstance(data, dict):
+        data["content_pillars"] = clean_string_list(data.get("content_pillars"), default=[
+            "Problem Diagnosis & Regulatory Benchmarking",
+            "Product Capabilities & Architectural Deep Dives",
+            "Customer Case Studies & Verified ROI Proof",
+            "Strategic Leadership & Future Technology Trends",
+        ])
+
     elapsed = round(time.perf_counter() - t0, 3)
     logger.info(f"[ResearchNode] Completed market analysis in {elapsed}s")
     node_metrics = dict(state.get("node_metrics", {}))
@@ -97,7 +105,12 @@ def marketing_node(state: CampaignState, llm: LLMClient) -> Dict[str, Any]:
     research = state["research_data"]
     weeks = scenario["duration_weeks"]
     channels = scenario["channels"]
-    pillars = research.get("content_pillars", [])
+    pillars = clean_string_list(research.get("content_pillars", []), default=[
+        "Problem Diagnosis & Regulatory Benchmarking",
+        "Product Capabilities & Architectural Deep Dives",
+        "Customer Case Studies & Verified ROI Proof",
+        "Strategic Leadership & Future Technology Trends",
+    ])
 
     prompt = (
         f"You are the Head of Content Strategy. Build an editorial calendar and asset plan for:\n"
