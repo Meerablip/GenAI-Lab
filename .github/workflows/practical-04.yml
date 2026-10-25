@@ -1,0 +1,111 @@
+name: Practical 4 - Multimodal AI and RAG
+
+# Part A: vision-language models (BLIP, CLIP) + text-to-image (SD-Turbo) + a Gradio app.
+# Part B: Retrieval-Augmented Generation (embeddings, ChromaDB/FAISS, semantic search, Ollama LLM).
+# Both jobs run on GitHub-hosted CPU runners and upload their raw results as artifacts.
+
+on:
+  workflow_dispatch:
+    inputs:
+      smoke:
+        description: "Smoke test: tiny configuration to check the wiring (not a result)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+env:
+  PYTHONUNBUFFERED: "1"
+  TOKENIZERS_PARALLELISM: "false"
+  HF_HUB_DISABLE_TELEMETRY: "1"
+  GRADIO_ANALYTICS_ENABLED: "False"
+  ANONYMIZED_TELEMETRY: "False"
+  SMOKE: ${{ inputs.smoke && '--smoke' || '' }}
+
+jobs:
+  part-a-multimodal:
+    name: 4A - Vision-language models and text-to-image
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies (CPU-only PyTorch)
+        run: |
+          mkdir -p results/part_a
+          python -m pip install --upgrade pip
+          pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+          pip install -r practical-04/part_a_multimodal/requirements.txt
+          pip freeze > results/part_a/requirements.lock.txt
+
+      - name: Run the multimodal experiment
+        run: python practical-04/part_a_multimodal/run_experiment.py --out results/part_a $SMOKE
+
+      - name: Smoke-test the interactive Gradio app
+        run: python practical-04/part_a_multimodal/smoke_test_app.py --out results/part_a
+
+      - name: Publish summary
+        if: always()
+        run: cat results/part_a/summary.md >> "$GITHUB_STEP_SUMMARY" || true
+
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: practical-04-part-a
+          path: results/part_a
+          retention-days: 90
+
+  part-b-rag:
+    name: 4B - Retrieval-Augmented Generation
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies (CPU-only PyTorch)
+        run: |
+          mkdir -p results/part_b
+          python -m pip install --upgrade pip
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install -r practical-04/part_b_rag/requirements.txt
+          pip freeze > results/part_b/requirements.lock.txt
+
+      - name: Install Ollama and pull llama3.2:3b
+        run: |
+          curl -fsSL https://ollama.com/install.sh | sh
+          if ! curl -sf http://127.0.0.1:11434/ > /dev/null; then
+            nohup ollama serve > ollama.log 2>&1 &
+          fi
+          for i in $(seq 1 60); do curl -sf http://127.0.0.1:11434/ > /dev/null && break; sleep 2; done
+          ollama --version | tee results/part_b/ollama_version.txt
+          ollama pull llama3.2:3b
+          ollama list | tee results/part_b/ollama_list.txt
+
+      - name: Run the RAG experiment
+        run: python practical-04/part_b_rag/run_experiment.py --out results/part_b $SMOKE
+
+      - name: Record the Ollama runtime state
+        if: always()
+        run: ollama ps | tee results/part_b/ollama_ps.txt || true
+
+      - name: Publish summary
+        if: always()
+        run: cat results/part_b/summary.md >> "$GITHUB_STEP_SUMMARY" || true
+
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: practical-04-part-b
+          path: |
+            results/part_b
+            !results/part_b/chroma_db
+          retention-days: 90

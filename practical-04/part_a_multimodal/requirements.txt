@@ -1,0 +1,11 @@
+# torch and torchvision are installed first from the CPU-only wheel index:
+#   pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+transformers
+diffusers
+accelerate
+safetensors
+sentence-transformers
+pillow
+numpy
+psutil
+gradio

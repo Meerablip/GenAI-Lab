@@ -1,0 +1,108 @@
+{
+  "real_images": [
+    {
+      "id": "astronaut", "file": "assets/astronaut.png", "truth_label": 0,
+      "questions": [
+        {"q": "What color is the spacesuit?", "answers": ["orange"]},
+        {"q": "Is there a flag in the picture?", "answers": ["yes"]},
+        {"q": "Is the woman smiling?", "answers": ["yes"]}
+      ]
+    },
+    {
+      "id": "cat", "file": "assets/chelsea.png", "truth_label": 1,
+      "questions": [
+        {"q": "What animal is in the picture?", "answers": ["cat", "kitten"]},
+        {"q": "What color are the eyes?", "answers": ["green", "yellow"]},
+        {"q": "Is the animal sleeping?", "answers": ["no"]}
+      ]
+    },
+    {
+      "id": "coffee", "file": "assets/coffee.png", "truth_label": 2,
+      "questions": [
+        {"q": "What is in the cup?", "answers": ["coffee", "espresso"]},
+        {"q": "Is there a spoon on the saucer?", "answers": ["yes"]},
+        {"q": "What is the table made of?", "answers": ["wood", "wooden"]}
+      ]
+    },
+    {
+      "id": "rocket", "file": "assets/rocket.png", "truth_label": 3,
+      "questions": [
+        {"q": "What is standing on the launch pad?", "answers": ["rocket"]},
+        {"q": "Is it daytime?", "answers": ["no"]},
+        {"q": "Are there lights on the ground?", "answers": ["yes"]}
+      ]
+    },
+    {
+      "id": "cameraman", "file": "assets/camera.png", "truth_label": 4,
+      "questions": [
+        {"q": "What is the man holding?", "answers": ["camera"]},
+        {"q": "Is the photograph in color?", "answers": ["no"]},
+        {"q": "What is the camera mounted on?", "answers": ["tripod"]}
+      ]
+    }
+  ],
+  "clip_labels": [
+    "a photo of an astronaut",
+    "a photo of a cat",
+    "a photo of a cup of coffee",
+    "a photo of a rocket on a launch pad",
+    "a photo of a man with a camera",
+    "a photo of a dog",
+    "a photo of a city street",
+    "a photo of a mountain landscape"
+  ],
+  "generation_prompts": [
+    {
+      "id": "bicycle", "prompt": "a red bicycle leaning against a brick wall",
+      "checks": [
+        {"q": "what color is the bicycle?", "answers": ["red"]},
+        {"q": "what is the bicycle leaning against?", "answers": ["wall", "brick wall", "bricks", "brick"]}
+      ]
+    },
+    {
+      "id": "bus", "prompt": "a yellow school bus driving on a snowy road",
+      "checks": [
+        {"q": "what color is the bus?", "answers": ["yellow"]},
+        {"q": "is there snow on the road?", "answers": ["yes"]}
+      ]
+    },
+    {
+      "id": "cat", "prompt": "a white cat sleeping on a wooden chair",
+      "checks": [
+        {"q": "what animal is shown?", "answers": ["cat", "kitten"]},
+        {"q": "what color is the cat?", "answers": ["white"]}
+      ]
+    },
+    {
+      "id": "strawberries", "prompt": "a white bowl filled with fresh strawberries on a kitchen table",
+      "checks": [
+        {"q": "what fruit is in the bowl?", "answers": ["strawberries", "strawberry"]},
+        {"q": "what color is the bowl?", "answers": ["white"]}
+      ]
+    },
+    {
+      "id": "lighthouse", "prompt": "a lighthouse on a rocky cliff at sunset",
+      "checks": [
+        {"q": "what is on the cliff?", "answers": ["lighthouse", "light house"]},
+        {"q": "what time of day is it?", "answers": ["sunset", "evening", "dusk"]}
+      ]
+    },
+    {
+      "id": "astronaut_horse", "prompt": "an astronaut riding a horse on the moon",
+      "checks": [
+        {"q": "what animal is in the picture?", "answers": ["horse"]},
+        {"q": "who is riding the horse?", "answers": ["astronaut", "spaceman"]}
+      ]
+    }
+  ],
+  "steps": [1, 2, 4],
+  "reference_steps": 4,
+  "base_seed": 42,
+  "app_smoke": {
+    "describe_image": "assets/coffee.png",
+    "describe_question": "What is in the cup?",
+    "generate_prompt": "a lighthouse on a rocky cliff at sunset",
+    "generate_steps": 2,
+    "generate_seed": 7
+  }
+}

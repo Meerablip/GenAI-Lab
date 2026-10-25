@@ -1,0 +1,3 @@
+Halcyon Library
+
+The Halcyon Library holds 310,000 volumes and subscribes to 46 research databases. Students can borrow 6 books for 17 days, while faculty can borrow 12 books for 45 days. Items can be renewed twice unless another reader has reserved them. The overdue fine is 0.30 USD per day per book. A lost book must be replaced or paid for at its replacement cost plus an 8 USD processing fee. The library is open from 08:00 to 23:00 on weekdays and from 09:00 to 17:00 on Saturdays, and its second-floor reading hall stays open 24 hours during the examination fortnight.

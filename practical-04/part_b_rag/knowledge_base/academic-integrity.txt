@@ -1,0 +1,3 @@
+Academic integrity policy
+
+Submissions are checked by the OriginCheck similarity tool, and a similarity score above 25%, excluding references, is flagged for review. A first offence results in a zero for that component and a written warning; a second offence results in failing the course; a third offence leads to suspension for one semester. Any use of AI writing tools must be declared in an "AI Use Statement" appended to the submission. Cases are heard by the Academic Conduct Board, chaired by Prof. Tomasz Greywater. Students may appeal a decision within 10 days.

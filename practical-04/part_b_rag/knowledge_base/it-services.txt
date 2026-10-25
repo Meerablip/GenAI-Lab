@@ -1,0 +1,3 @@
+IT services and campus network
+
+The secure campus Wi-Fi network is called ZIT-Secure, and students log in with their student ID and portal password. The guest network, ZIT-Guest, is limited to 2 hours per day. Every student receives 1 TB of cloud storage and an email address ending in @students.zit.example. Hostel Wi-Fi is capped at 80 GB per month per student. The IT help desk is in Room C-020 and is open from 09:00 to 18:00. Passwords are reset through the Keystone portal, and a VPN is required to access paid journals from off campus.

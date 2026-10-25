@@ -1,0 +1,9 @@
+# torch is installed first from the CPU-only wheel index:
+#   pip install torch --index-url https://download.pytorch.org/whl/cpu
+sentence-transformers
+chromadb
+faiss-cpu
+rank-bm25
+numpy
+psutil
+ollama

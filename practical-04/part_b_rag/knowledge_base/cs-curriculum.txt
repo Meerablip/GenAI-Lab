@@ -1,0 +1,3 @@
+B.Tech Computer Science curriculum
+
+The B.Tech programme in Computer Science spans eight semesters and 164 credits. Core courses include Data Structures (4 credits) and Operating Systems (4 credits). The elective Generative AI Systems, taught by Dr. Naveen Okafor, is offered in semester 7 and carries 3 credits. Students must earn at least 20 credits from open electives and may register for at most 26 credits in any semester. The capstone project in semester 8 carries 12 credits.
