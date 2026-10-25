@@ -1,0 +1,7 @@
+ollama
+psutil
+numpy
+scipy
+sentence-transformers
+sacrebleu
+rouge-score

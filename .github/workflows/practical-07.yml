@@ -1,0 +1,64 @@
+name: Practical 7 - Hallucination and Response Quality Evaluation
+
+# 20 questions with trusted references -> llama3.2:3b answers -> automated metrics (EM, F1, BLEU, ROUGE, semantic similarity),
+# sampling-consistency, LLM-as-judge (qwen2.5:3b), hallucination detection, human rating sheet.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PYTHONUNBUFFERED: "1"
+  TOKENIZERS_PARALLELISM: "false"
+
+jobs:
+  evaluate:
+    name: 7 - Hallucination and response quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies (CPU-only PyTorch)
+        run: |
+          mkdir -p results/prac07
+          python -m pip install --upgrade pip
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install -r practical-07/requirements.txt
+          pip freeze > results/prac07/requirements.lock.txt
+
+      - name: Install Ollama and pull the generator and judge models
+        run: |
+          curl -fsSL https://ollama.com/install.sh | sh
+          if ! curl -sf http://127.0.0.1:11434/ > /dev/null; then
+            nohup ollama serve > ollama.log 2>&1 &
+          fi
+          for i in $(seq 1 60); do curl -sf http://127.0.0.1:11434/ > /dev/null && break; sleep 2; done
+          ollama --version | tee results/prac07/ollama_version.txt
+          ollama pull llama3.2:3b
+          ollama pull qwen2.5:3b
+          ollama list | tee results/prac07/ollama_list.txt
+
+      - name: Run the evaluation
+        run: python practical-07/run_experiment.py --out results/prac07
+
+      - name: Record the Ollama runtime state
+        if: always()
+        run: ollama ps | tee results/prac07/ollama_ps.txt || true
+
+      - name: Publish summary
+        if: always()
+        run: cat results/prac07/summary.md >> "$GITHUB_STEP_SUMMARY" || true
+
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: practical-07-evaluation
+          path: results/prac07
+          retention-days: 90
