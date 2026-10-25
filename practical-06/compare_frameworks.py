@@ -119,12 +119,34 @@ def compare_runs(part_a_dir: Path, part_b_dir: Path, out_dir: Path):
             f"${cr['approved_budget']:,.2f} | ${cr['variance']:+,.2f} |"
         )
 
+    comps = comparison["scenario_comparisons"]
+    n = len(comps)
+    ok_a = sum(c["langgraph"]["variance"] <= 0.005 for c in comps)
+    ok_b = sum(c["crewai"]["variance"] <= 0.005 for c in comps)
+    loops = [c for c in comps if c["langgraph"]["iterations"] > 1]
+    b_sc = {s_["scenario"]["id"]: s_ for s_ in b_data.get("scenarios", [])}
+    a_sc = {s_["scenario"]["id"]: s_ for s_ in a_data.get("scenarios", [])}
+    b_tasks = [t for s_ in b_sc.values() for t in s_.get("task_outputs", [])]
+    b_fb = sum(bool(t.get("used_fallback")) for t in b_tasks)
+    b_ov = sum(bool(t.get("guard_override")) for t in b_tasks)
+    a_nodes = [a_sc[c["scenario_id"]]["node_metrics"] for c in comps if c["scenario_id"] in a_sc]
+    a_fb = sum(bool(m_.get(k, {}).get("used_fallback")) for m_ in a_nodes for k in ("research", "marketing"))
     md.extend([
         "",
-        "## Key Experimental Conclusions",
-        "1. **Cyclical State Refinement in LangGraph**: For scenarios requiring strict fiduciary governance (such as the D2C apparel over-budget stress test), LangGraph's native conditional routing provided robust automated self-correction, looping back through revision and finance nodes until strict constraints were met.",
-        "2. **Role Specialization in CrewAI**: CrewAI's rich persona framing (backstory, goals) produced detailed narrative strategy outputs with minimal graph wiring, making it ideal for collaborative ideation where deterministic looping is not required.",
-        "3. **Production Recommendation**: Enterprise teams should leverage LangGraph when business rules require strict mathematical or policy guardrails (e.g., budget limits, multi-step revisions), while CrewAI excels in creative multi-perspective content generation.",
+        "## Measured results",
+        f"1. **Budget compliance**: LangGraph finished within the ceiling in {ok_a}/{n} scenarios; the CrewAI-style crew in {ok_b}/{n}.",
+        f"2. **Revision loop**: LangGraph looped back through Review -> Revision -> Finance in {len(loops)} scenario(s)"
+        + (f" ({', '.join(c['scenario_name'] for c in loops)})" if loops else "") + "; the sequential crew has no loop (one pass, the auditor adjusts in place).",
+        f"3. **Model vs. fallback**: {b_fb}/{len(b_tasks)} CrewAI-style tasks and {a_fb}/{2 * len(a_nodes)} LangGraph LLM nodes (Research, Marketing) used the deterministic "
+        f"fallback instead of the LLM's JSON; {b_ov} auditor decision(s) were overridden because the LLM approved a plan above the ceiling.",
+        f"4. **Latency**: LangGraph {a_data.get('duration_s', 0.0)}s vs CrewAI-style {b_data.get('duration_s', 0.0)}s on the same CPU runner and model "
+        "(Finance and Review in LangGraph are rule-based and make no LLM call; the crew calls the LLM for all four tasks).",
+        "",
+        "## Design notes (not measured here)",
+        "- LangGraph models the workflow as a typed state machine with conditional edges, which makes a review-and-revise cycle explicit; "
+        "a sequential crew expresses the same handoffs as an ordered task list and needs extra wiring for loops.",
+        "- The 'CrewAI' side is a minimal in-repository implementation of the Agent/Task/Crew pattern, not the `crewai` package, so its numbers "
+        "describe this implementation rather than the library.",
         "",
     ])
 

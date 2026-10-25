@@ -11,10 +11,6 @@ on:
         description: "Smoke test mode: fast execution"
         type: boolean
         default: false
-  push:
-    paths:
-      - "practical-06/**"
-      - ".github/workflows/practical-06.yml"
 
 permissions:
   contents: read

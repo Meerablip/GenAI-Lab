@@ -61,14 +61,43 @@ def generate_markdown_summary(results: dict) -> str:
             f"${var:+,.2f} | {item['iterations']} | **{rev.get('status', 'APPROVED')}** |"
         )
 
+    lines.extend(["", "## LLM output vs. deterministic fallback",
+                  "| Scenario | Research | Marketing | Calendar fields from LLM |", "|:---|:---:|:---:|:---:|"])
+    for item in results["scenarios"]:
+        nm = item["node_metrics"]
+        r_fb = nm.get("research", {}).get("used_fallback")
+        m = nm.get("marketing", {})
+        lines.append(f"| {item['scenario']['name']} | {'canned fallback' if r_fb else 'LLM JSON'} | "
+                     f"{'canned fallback' if m.get('used_fallback') else 'LLM JSON'} | "
+                     f"{m.get('calendar_fields_from_llm', 0)}/{m.get('calendar_fields_total', 0)} |")
     lines.extend([
+        "",
+        "Finance and Review are rule-based nodes (they do not call the LLM): budget lines are fixed shares of the ceiling "
+        "and the Review verdict is an over/under-ceiling check. Research and Marketing call the LLM and fall back to a "
+        "deterministic template when its JSON cannot be parsed (see the table above).",
         "",
         "## Multi-Agent State Machine Architecture",
         get_mermaid_diagram(),
         "",
         "## Key Findings",
-        "- **Dynamic Revision Loop**: In the over-budget stress test (`d2c_eco_apparel`), the Review Agent detected a +$9,800 (+65.3%) cost overrun, triggered a dynamic cycle via the conditional edge `route_decision`, and converged on an approved plan within the $15,000 ceiling on iteration 2.",
-        "- **Graph Traceability**: Complete state checkpoints were logged at every node transition, enabling auditing of how each agent transformed the strategy.",
+    ])
+    for item in results["scenarios"]:
+        s_ = item["scenario"]
+        hist = item["final_state"].get("revision_history", [])
+        fin = item["final_state"].get("financial_plan", {})
+        ceiling = to_float(s_.get("budget_ceiling", 0.0))
+        if hist:
+            first = to_float(hist[0].get("total_cost", 0.0))
+            over = first - ceiling
+            lines.append(
+                f"- **{s_['name']}**: the Review step rejected the first estimate of ${first:,.2f} "
+                f"(+${over:,.2f}, +{(over / max(ceiling, 1.0)) * 100:.1f}% over the ${ceiling:,.2f} ceiling) and the conditional edge "
+                f"looped back; the plan was approved on iteration {item['iterations']} at ${to_float(fin.get('total_cost', 0.0)):,.2f}.")
+        else:
+            lines.append(f"- **{s_['name']}**: approved on the first iteration at ${to_float(fin.get('total_cost', 0.0)):,.2f} "
+                         f"against a ${ceiling:,.2f} ceiling (no revision needed).")
+    lines.extend([
+        "- **Graph Traceability**: state and timing were logged at every node transition (`execution_log`, `node_metrics` in results.json).",
         "",
     ])
     return "\n".join(lines)
@@ -132,9 +161,10 @@ def generate_detailed_reports(results: dict) -> str:
             "| Week | Channel | Content Focus | Format | Goal |",
             "|:---:|:---|:---|:---|:---|",
         ])
-        for entry in mktg.get("weekly_calendar", [])[:4]:
+        for entry in [e for e in mktg.get("weekly_calendar", []) if isinstance(e, dict)][:4]:
             lines.append(
-                f"| W{entry['week_number']} | {entry['primary_channel']} | {entry['pillar']} | {entry['format']} | {entry['conversion_goal']} |"
+                f"| W{entry.get('week_number', '?')} | {entry.get('primary_channel', '')} | {entry.get('pillar', '')} | "
+                f"{entry.get('format', '')} | {entry.get('conversion_goal', '')} |"
             )
 
         lines.append("\n---\n")

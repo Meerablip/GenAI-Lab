@@ -134,7 +134,8 @@ class LLMClient:
             self.is_connected = False
             logger.info(f"Ollama server not reachable at {self.host}; using intelligent deterministic synthesizer.")
 
-    def generate(self, prompt: str, system: str = "", temperature: float = 0.2) -> tuple[str, dict[str, Any]]:
+    def generate(self, prompt: str, system: str = "", temperature: float = 0.2, json_mode: bool = True,
+                 num_predict: int = 1200) -> tuple[str, dict[str, Any]]:
         """Generate response via Ollama or structured fallback, returning (text, telemetry)."""
         t0 = time.perf_counter()
         if self.is_connected and not self.smoke:
@@ -146,10 +147,12 @@ class LLMClient:
                     "stream": False,
                     "options": {
                         "temperature": temperature,
-                        "num_predict": 768,
+                        "num_predict": num_predict,
                     },
                 }
-                res = requests.post(f"{self.host}/api/generate", json=payload, timeout=60.0)
+                if json_mode:  # Ollama constrains the output to syntactically valid JSON
+                    payload["format"] = "json"
+                res = requests.post(f"{self.host}/api/generate", json=payload, timeout=180.0)
                 if res.status_code == 200:
                     data = res.json()
                     elapsed = time.perf_counter() - t0
@@ -161,6 +164,7 @@ class LLMClient:
                         "eval_count": data.get("eval_count", 0),
                         "eval_duration_ms": round(data.get("eval_duration", 0) / 1e6, 1),
                         "prompt_eval_count": data.get("prompt_eval_count", 0),
+                        "truncated": data.get("eval_count", 0) >= num_predict,
                     }
                     return out, telemetry
             except Exception as e:

@@ -63,6 +63,21 @@ def generate_markdown_summary(results: dict) -> str:
             f"${final_cost:,.2f} | ${var:+,.2f} | **{status}** |"
         )
 
+    lines.extend(["", "## LLM output vs. deterministic fallback (per task)",
+                  "| Scenario | Research | Content | Finance | Audit | Auditor decision overridden by the budget rule |",
+                  "|:---|:---:|:---:|:---:|:---:|:---:|"])
+    for item in results["scenarios"]:
+        by = {t["task_name"]: t for t in item.get("task_outputs", [])}
+        cell = lambda n: "fallback" if by.get(n, {}).get("used_fallback") else "LLM JSON"  # noqa: E731
+        ov = by.get("audit_finalization", {}).get("guard_override")
+        lines.append(f"| {item['scenario']['name']} | {cell('research')} | {cell('content_strategy')} | {cell('financial_planning')} | "
+                     f"{cell('audit_finalization')} | {('yes - LLM said ' + str(ov['llm_status']) + ' at $' + format(ov['llm_final_budget'], ',.2f')) if ov else 'no'} |")
+    lines.extend([
+        "",
+        "Note: the `Agent`/`Task`/`Crew` classes in `crew_workflow.py` are a minimal in-repository implementation of the CrewAI "
+        "role/task/sequential-crew pattern; the `crewai` package itself is not used. The LLM's answer is accepted only if it meets a "
+        "minimal schema; otherwise a deterministic template is used (table above).",
+    ])
     lines.extend([
         "",
         "## Architectural Observations",

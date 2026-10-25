@@ -11,6 +11,65 @@ from part_a_langgraph.state import CampaignState
 logger = logging.getLogger("prac06.langgraph.nodes")
 
 
+def _persona_name(p: Any, i: int) -> str:
+    """A persona may come back from a small LLM as a dict with any key name, or as a plain string."""
+    if isinstance(p, dict):
+        for k in ("persona_name", "name", "persona", "title", "role", "role_context"):
+            v = p.get(k)
+            if isinstance(v, str) and v.strip():
+                return v.strip()
+        return f"Persona {i}"
+    return str(p).strip() or f"Persona {i}"
+
+
+def normalise_personas(raw: Any) -> list:
+    items = raw if isinstance(raw, list) else []
+    out = []
+    for i, p in enumerate(items, start=1):
+        d = dict(p) if isinstance(p, dict) else {"description": str(p)}
+        d["persona_name"] = _persona_name(p, i)
+        out.append(d)
+    return out
+
+
+def _text(v: Any, default: str) -> str:
+    return v.strip() if isinstance(v, str) and v.strip() else default
+
+
+def normalise_calendar(raw: Any, weeks: int, pillars: list, channels: list, audience: str) -> tuple[list, int]:
+    """Coerce the LLM's weekly_calendar into one dict per week with every key the reports use.
+
+    Returns (calendar, number_of_fields_taken_from_the_LLM). Missing or malformed fields get a deterministic default.
+    """
+    entries = raw if isinstance(raw, list) else []
+    calendar, from_llm = [], 0
+    for w in range(1, weeks + 1):
+        e = entries[w - 1] if w - 1 < len(entries) and isinstance(entries[w - 1], dict) else {}
+        pillar = pillars[(w - 1) % len(pillars)]
+        defaults = {
+            "week_number": w,
+            "pillar": pillar,
+            "primary_channel": channels[(w - 1) % len(channels)],
+            "asset_headline": f"Week {w}: Masterclass on {pillar} for {audience.split(',')[0]}",
+            "format": "Interactive Case Study / Long-form Technical Carousel" if w % 2 == 1 else "Short-form Video & Key Executive Takeaways",
+            "conversion_goal": "Whitepaper Download" if w <= weeks // 2 else "Direct Demo Request / Pilot Application",
+        }
+        aliases = {"week_number": ("week_number", "week"), "pillar": ("pillar", "content_pillar", "theme", "topic"),
+                   "primary_channel": ("primary_channel", "channel"), "asset_headline": ("asset_headline", "headline", "title"),
+                   "format": ("format", "asset_type", "type"), "conversion_goal": ("conversion_goal", "goal", "cta")}
+        row = {}
+        for key, names in aliases.items():
+            val = next((e[n] for n in names if n in e), None)
+            if key == "week_number":
+                ok = isinstance(val, int) and not isinstance(val, bool)
+            else:
+                ok = isinstance(val, str) and bool(val.strip())
+            row[key] = (val if key == "week_number" else val.strip()) if ok else defaults[key]
+            from_llm += int(ok)
+        calendar.append(row)
+    return calendar, from_llm
+
+
 def research_node(state: CampaignState, llm: LLMClient) -> Dict[str, Any]:
     """Research Agent: analyzes market opportunities, buyer personas, keywords, and content pillars."""
     t0 = time.perf_counter()
@@ -33,7 +92,8 @@ def research_node(state: CampaignState, llm: LLMClient) -> Dict[str, Any]:
     resp, telem = llm.generate(prompt, system=system)
     data = extract_json_block(resp)
 
-    if not data or not isinstance(data, dict) or "content_pillars" not in data:
+    used_fallback = not data or not isinstance(data, dict) or "content_pillars" not in data
+    if used_fallback:
         # Structured deterministic fallback with rich domain-specific data
         data = {
             "market_summary": f"Strong market demand identified for {topic}. Key drivers include regulatory compliance, efficiency mandates, and buyer readiness among {audience}.",
@@ -71,17 +131,25 @@ def research_node(state: CampaignState, llm: LLMClient) -> Dict[str, Any]:
         }
 
     if data and isinstance(data, dict):
+        data["market_summary"] = _text(data.get("market_summary"), f"Market analysis for {topic}.")
+        data["target_personas"] = normalise_personas(data.get("target_personas"))
         data["content_pillars"] = clean_string_list(data.get("content_pillars"), default=[
             "Problem Diagnosis & Regulatory Benchmarking",
             "Product Capabilities & Architectural Deep Dives",
             "Customer Case Studies & Verified ROI Proof",
             "Strategic Leadership & Future Technology Trends",
         ])
+        data["high_intent_keywords"] = clean_string_list(data.get("high_intent_keywords"), default=[
+            f"{topic.split()[0]} automation",
+            "enterprise compliance audit",
+            "predictive workflow optimization",
+            "cost reduction benchmark 2026",
+        ])
 
     elapsed = round(time.perf_counter() - t0, 3)
     logger.info(f"[ResearchNode] Completed market analysis in {elapsed}s")
     node_metrics = dict(state.get("node_metrics", {}))
-    node_metrics["research"] = {"elapsed_s": elapsed, "telemetry": telem}
+    node_metrics["research"] = {"elapsed_s": elapsed, "telemetry": telem, "used_fallback": used_fallback}
 
     log_entry = {
         "timestamp": time.time(),
@@ -124,7 +192,9 @@ def marketing_node(state: CampaignState, llm: LLMClient) -> Dict[str, Any]:
     resp, telem = llm.generate(prompt, system=system)
     data = extract_json_block(resp)
 
-    if not data or not isinstance(data, dict) or "weekly_calendar" not in data:
+    used_fallback = not data or not isinstance(data, dict) or "weekly_calendar" not in data
+    fields_from_llm = 0
+    if used_fallback:
         weekly_calendar = []
         for w in range(1, weeks + 1):
             pillar_idx = (w - 1) % len(pillars)
@@ -150,10 +220,18 @@ def marketing_node(state: CampaignState, llm: LLMClient) -> Dict[str, Any]:
             },
         }
 
+    if not used_fallback:
+        data["weekly_calendar"], fields_from_llm = normalise_calendar(
+            data.get("weekly_calendar"), weeks, pillars, channels, scenario["target_audience"])
+        if not isinstance(data.get("asset_breakdown"), dict):
+            data["asset_breakdown"] = {}
+        data["strategy_narrative"] = _text(data.get("strategy_narrative"), f"{weeks}-week content strategy for {scenario['topic']}.")
+
     elapsed = round(time.perf_counter() - t0, 3)
     logger.info(f"[MarketingNode] Designed {weeks}-week editorial calendar in {elapsed}s")
     node_metrics = dict(state.get("node_metrics", {}))
-    node_metrics["marketing"] = {"elapsed_s": elapsed, "telemetry": telem}
+    node_metrics["marketing"] = {"elapsed_s": elapsed, "telemetry": telem, "used_fallback": used_fallback,
+                                 "calendar_fields_from_llm": fields_from_llm, "calendar_fields_total": 6 * weeks}
 
     log_entry = {
         "timestamp": time.time(),
@@ -366,34 +444,45 @@ def finalize_node(state: CampaignState) -> Dict[str, Any]:
     feedback = state["review_feedback"]
     history = state.get("revision_history", [])
 
+    fin_ceiling = to_float(finance.get("budget_ceiling", scenario.get("budget_ceiling", 0.0)))
+    fin_cost = to_float(finance.get("total_cost", 0.0))
+    fin_var = to_float(finance.get("variance", 0.0))
+    unit_econ = finance.get("unit_economics", {})
+    reach = int(to_float(unit_econ.get("projected_reach", 10000)))
+    cac = to_float(unit_econ.get("estimated_cac_or_cpa", 10.0))
+
     final_report = {
         "campaign_id": scenario["id"],
         "campaign_name": scenario["name"],
         "topic": scenario["topic"],
         "target_audience": scenario["target_audience"],
         "duration_weeks": scenario["duration_weeks"],
-        "budget_ceiling": finance["budget_ceiling"],
-        "final_budget": finance["total_cost"],
-        "budget_variance": finance["variance"],
+        "budget_ceiling": fin_ceiling,
+        "final_budget": fin_cost,
+        "budget_variance": fin_var,
         "approval_status": feedback["status"],
         "total_revisions": len(history),
         "research_highlights": {
-            "personas": [p["persona_name"] for p in research.get("target_personas", [])],
-            "pillars": research.get("content_pillars", []),
-            "keywords": research.get("high_intent_keywords", []),
+            "personas": [
+                p.get("persona_name") or p.get("persona") or p.get("name") or p.get("role") or str(p)
+                if isinstance(p, dict) else str(p)
+                for p in research.get("target_personas", [])
+            ],
+            "pillars": clean_string_list(research.get("content_pillars", [])),
+            "keywords": clean_string_list(research.get("high_intent_keywords", [])),
         },
         "content_schedule_summary": {
             "total_milestones": len(marketing.get("weekly_calendar", [])),
             "asset_deliverables": marketing.get("asset_breakdown", {}),
         },
-        "budget_distribution": finance["line_items"],
-        "unit_economics": finance["unit_economics"],
+        "budget_distribution": finance.get("line_items", {}),
+        "unit_economics": unit_econ,
         "executive_summary": (
             f"The multi-agent workflow autonomously synthesized a {scenario['duration_weeks']}-week "
             f"content and marketing strategy for '{scenario['topic']}'. The strategy deployed {len(marketing.get('weekly_calendar', []))} "
             f"scheduled editorial assets across {len(scenario['channels'])} core distribution channels, achieving "
-            f"a final approved budget of ${finance['total_cost']:.2f} within the ${finance['budget_ceiling']:.2f} authorized ceiling "
-            f"({finance['unit_economics']['projected_reach']:,} estimated impressions, target CAC/CPA: ${finance['unit_economics']['estimated_cac_or_cpa']:.2f})."
+            f"a final approved budget of ${fin_cost:,.2f} within the ${fin_ceiling:,.2f} authorized ceiling "
+            f"({reach:,} estimated impressions, target CAC/CPA: ${cac:,.2f})."
         ),
     }
 

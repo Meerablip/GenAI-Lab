@@ -5,9 +5,51 @@ import logging
 import time
 from typing import Any, Dict, List
 
-from common import LLMClient, extract_json_block
+from common import LLMClient, clean_string_list, extract_json_block, to_float
 
 logger = logging.getLogger("prac06.crewai.workflow")
+
+
+def _has_schema(task_name: str, d: Any) -> bool:
+    """Minimal schema an LLM answer must meet to be used instead of the deterministic fallback."""
+    if not isinstance(d, dict):
+        return False
+    if task_name == "research":
+        return bool(clean_string_list(d.get("content_pillars")))
+    if task_name == "content_strategy":
+        cal = d.get("weekly_calendar")
+        return isinstance(cal, list) and any(isinstance(e, dict) for e in cal)
+    if task_name == "financial_planning":
+        return to_float(d.get("total_cost")) > 0 and isinstance(d.get("line_items"), dict)
+    if task_name == "audit_finalization":
+        return isinstance(d.get("approval_status"), str) and to_float(d.get("final_budget")) > 0
+    return True
+
+
+def _normalise(task_name: str, d: Dict[str, Any], ceiling: float) -> Dict[str, Any]:
+    """Coerce an accepted LLM answer to the types the rest of the pipeline expects."""
+    d = dict(d)
+    if task_name == "research":
+        d["market_summary"] = d["market_summary"] if isinstance(d.get("market_summary"), str) else ""
+        d["content_pillars"] = clean_string_list(d.get("content_pillars"))
+        d["target_personas"] = d["target_personas"] if isinstance(d.get("target_personas"), list) else []
+    elif task_name == "content_strategy":
+        d["strategy_narrative"] = d["strategy_narrative"] if isinstance(d.get("strategy_narrative"), str) else ""
+        d["weekly_calendar"] = [e for e in d["weekly_calendar"] if isinstance(e, dict)]
+    elif task_name == "financial_planning":
+        total = to_float(d.get("total_cost"))
+        d["budget_ceiling"] = ceiling
+        d["total_cost"] = total
+        d["variance"] = round(total - ceiling, 2)
+        d["is_over_budget"] = total > ceiling
+        d["line_items"] = {str(k): to_float(v) for k, v in d["line_items"].items()}
+    elif task_name == "audit_finalization":
+        final = to_float(d.get("final_budget"))
+        d["final_budget"] = final
+        d["variance"] = round(final - ceiling, 2)
+        d["approval_status"] = d["approval_status"].strip().upper().replace(" ", "_")
+        d["auditor_notes"] = d["auditor_notes"] if isinstance(d.get("auditor_notes"), str) else ""
+    return d
 
 
 class Agent:
@@ -79,21 +121,30 @@ class Crew:
 
             if "research_output" in context:
                 prompt += f"\nMarket Research Findings from Research Agent:\n{context['research_output'].get('market_summary', '')}\n"
-                prompt += f"Identified Pillars: {', '.join(context['research_output'].get('content_pillars', []))}\n"
+                prompt += f"Identified Pillars: {', '.join(clean_string_list(context['research_output'].get('content_pillars')))}\n"
 
             if "content_output" in context:
                 prompt += f"\nContent Roadmap from Marketing Strategist:\n{context['content_output'].get('strategy_narrative', '')}\n"
 
             if "finance_output" in context:
                 fin = context["finance_output"]
-                prompt += f"\nBudget Proposal from Financial Controller:\nTotal Cost: ${fin.get('total_cost', 0):,.2f} vs Ceiling: ${scenario['budget_ceiling']:,.2f}\n"
+                prompt += f"\nBudget Proposal from Financial Controller:\nTotal Cost: ${to_float(fin.get('total_cost')):,.2f} vs Ceiling: ${scenario['budget_ceiling']:,.2f}\n"
 
             raw_resp, telem = self.llm.generate(prompt, system=system_prompt)
             parsed_data = extract_json_block(raw_resp)
+            ceiling = to_float(scenario["budget_ceiling"])
 
-            # Provide deterministic structured schema if unparsed
-            if not parsed_data:
+            # Use the LLM's answer only if it meets the minimal schema; otherwise fall back (and record that we did)
+            used_fallback = not _has_schema(task.name, parsed_data)
+            guard_override = None
+            if used_fallback:
                 parsed_data = self._synthesize_task_output(task.name, scenario, context)
+            else:
+                parsed_data = _normalise(task.name, parsed_data, ceiling)
+                # Rule from the brief: a plan above the ceiling must not be signed off
+                if task.name == "audit_finalization" and parsed_data["final_budget"] > ceiling + 0.005:
+                    guard_override = {"llm_status": parsed_data["approval_status"], "llm_final_budget": parsed_data["final_budget"]}
+                    parsed_data = {**self._synthesize_task_output(task.name, scenario, context), "llm_decision_overridden": guard_override}
 
             elapsed = round(time.perf_counter() - t0, 3)
             task.output = parsed_data
@@ -113,6 +164,8 @@ class Crew:
                 "elapsed_s": elapsed,
                 "output": parsed_data,
                 "telemetry": telem,
+                "used_fallback": used_fallback,
+                "guard_override": guard_override,
             })
             logger.info(f"[CrewAI] Agent '{task.agent.role}' completed '{task.name}' in {elapsed}s")
 
