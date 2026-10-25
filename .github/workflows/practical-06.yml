@@ -1,0 +1,155 @@
+name: Practical 6 - Multi-Agent Business Workflow
+
+# Multi-Agent Business Workflow: Developing a "Marketing & Finance" Agent Team
+# using CrewAI and LangGraph to Autonomously Research a Topic and Produce a Budget-Aligned Content Strategy.
+# Both agent frameworks run on GitHub-hosted CPU runners and upload their raw results as artifacts.
+
+on:
+  workflow_dispatch:
+    inputs:
+      smoke:
+        description: "Smoke test mode: fast execution"
+        type: boolean
+        default: false
+  push:
+    paths:
+      - "practical-06/**"
+      - ".github/workflows/practical-06.yml"
+
+permissions:
+  contents: read
+
+env:
+  PYTHONUNBUFFERED: "1"
+  SMOKE: ${{ inputs.smoke && '--smoke' || '' }}
+
+jobs:
+  part-a-langgraph:
+    name: 6A - LangGraph Multi-Agent Workflow
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          mkdir -p results/part_a
+          python -m pip install --upgrade pip
+          pip install -r practical-06/part_a_langgraph/requirements.txt
+          pip freeze > results/part_a/requirements.lock.txt
+
+      - name: Install Ollama and pull llama3.2:1b
+        run: |
+          curl -fsSL https://ollama.com/install.sh | sh
+          if ! curl -sf http://127.0.0.1:11434/ > /dev/null; then
+            nohup ollama serve > ollama.log 2>&1 &
+          fi
+          for i in $(seq 1 60); do curl -sf http://127.0.0.1:11434/ > /dev/null && break; sleep 2; done
+          ollama --version | tee results/part_a/ollama_version.txt
+          ollama pull llama3.2:1b
+          ollama list | tee results/part_a/ollama_list.txt
+
+      - name: Run LangGraph multi-agent experiment
+        run: python practical-06/part_a_langgraph/run_experiment.py --out results/part_a $SMOKE
+
+      - name: Record Ollama runtime state
+        if: always()
+        run: ollama ps | tee results/part_a/ollama_ps.txt || true
+
+      - name: Publish summary
+        if: always()
+        run: cat results/part_a/summary.md >> "$GITHUB_STEP_SUMMARY" || true
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: practical-06-part-a
+          path: results/part_a
+          retention-days: 90
+
+  part-b-crewai:
+    name: 6B - CrewAI Multi-Agent Workflow
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          mkdir -p results/part_b
+          python -m pip install --upgrade pip
+          pip install -r practical-06/part_b_crewai/requirements.txt
+          pip freeze > results/part_b/requirements.lock.txt
+
+      - name: Install Ollama and pull llama3.2:1b
+        run: |
+          curl -fsSL https://ollama.com/install.sh | sh
+          if ! curl -sf http://127.0.0.1:11434/ > /dev/null; then
+            nohup ollama serve > ollama.log 2>&1 &
+          fi
+          for i in $(seq 1 60); do curl -sf http://127.0.0.1:11434/ > /dev/null && break; sleep 2; done
+          ollama --version | tee results/part_b/ollama_version.txt
+          ollama pull llama3.2:1b
+          ollama list | tee results/part_b/ollama_list.txt
+
+      - name: Run CrewAI multi-agent experiment
+        run: python practical-06/part_b_crewai/run_experiment.py --out results/part_b $SMOKE
+
+      - name: Record Ollama runtime state
+        if: always()
+        run: ollama ps | tee results/part_b/ollama_ps.txt || true
+
+      - name: Publish summary
+        if: always()
+        run: cat results/part_b/summary.md >> "$GITHUB_STEP_SUMMARY" || true
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: practical-06-part-b
+          path: results/part_b
+          retention-days: 90
+
+  benchmark-and-compare:
+    name: 6C - Framework Benchmark & Synthesis
+    runs-on: ubuntu-latest
+    needs: [part-a-langgraph, part-b-crewai]
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: practical-06-part-a
+          path: results/part_a
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: practical-06-part-b
+          path: results/part_b
+
+      - name: Run benchmark comparison
+        run: python practical-06/compare_frameworks.py --part-a results/part_a --part-b results/part_b --out results/comparison
+
+      - name: Publish comparative step summary
+        if: always()
+        run: cat results/comparison/summary.md >> "$GITHUB_STEP_SUMMARY" || true
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: practical-06-comparison
+          path: results/comparison
+          retention-days: 90
