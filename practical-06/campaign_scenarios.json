@@ -1,0 +1,69 @@
+[
+  {
+    "id": "b2b_greentech",
+    "name": "Enterprise GreenTech & ESG Analytics",
+    "topic": "Autonomous Carbon Accounting & Scope 1-3 GHG Audit Software for Fortune 1000 Enterprises",
+    "target_audience": "Chief Sustainability Officers (CSOs), VP of Corporate Responsibility, and Enterprise CFOs",
+    "campaign_objectives": "Generate 60 qualified demo requests from Tier-1 enterprises, 4,000 downloads of 'State of Corporate Decarbonization 2026' report, and establish category authority on LinkedIn",
+    "duration_weeks": 8,
+    "budget_ceiling": 25000.0,
+    "force_initial_overbudget": false,
+    "channels": [
+      "LinkedIn Thought Leadership",
+      "Executive Industry Whitepapers",
+      "Interactive ESG Virtual Roundtable",
+      "Enterprise Tech Newsletter Sponsorship"
+    ],
+    "key_kpis": {
+      "demo_requests": 60,
+      "whitepaper_downloads": 4000,
+      "target_cpa": 416.0,
+      "projected_reach": 85000
+    }
+  },
+  {
+    "id": "healthtech_ai",
+    "name": "AI Clinical Workflow & Remote Patient Monitoring",
+    "topic": "Predictive ICU Triage & Telemetry Anomaly Detection Platform for Regional Healthcare Networks",
+    "target_audience": "Hospital Chief Medical Officers (CMOs), Clinical Informatics Directors, and Regional Health System CIOs",
+    "campaign_objectives": "Secure 5 hospital network clinical pilot agreements, 150 hospital director consultations, and peer-reviewed case study citations",
+    "duration_weeks": 12,
+    "budget_ceiling": 40000.0,
+    "force_initial_overbudget": false,
+    "channels": [
+      "Medical Informatics Journal Digital Ads",
+      "Clinical Director Roundtables & Dinners",
+      "Video Clinical Case Studies",
+      "HIMSS & Healthcare IT Partner Webinars"
+    ],
+    "key_kpis": {
+      "hospital_pilots": 5,
+      "director_consultations": 150,
+      "target_cpa": 266.0,
+      "projected_reach": 42000
+    }
+  },
+  {
+    "id": "d2c_eco_apparel",
+    "name": "Circular Regenerative D2C Apparel Launch (Stress Test)",
+    "topic": "Closed-Loop Zero-Waste Bio-Polymer Activewear Capsule Collection",
+    "target_audience": "Gen-Z & Millennial urban eco-conscious fitness enthusiasts (ages 18-34)",
+    "campaign_objectives": "Achieve 8,000 product pre-orders, 25,000 waitlist signups, and sub-$18 customer acquisition cost (CAC)",
+    "duration_weeks": 6,
+    "budget_ceiling": 15000.0,
+    "force_initial_overbudget": true,
+    "initial_unconstrained_estimate": 24800.0,
+    "channels": [
+      "TikTok & Instagram UGC / Micro-influencers",
+      "Meta Performance Ads",
+      "Sustainable Lifestyle Podcast Sponsorships",
+      "VIP Early-Access Email Drop Sequences"
+    ],
+    "key_kpis": {
+      "pre_orders": 8000,
+      "waitlist_signups": 25000,
+      "target_cac": 18.0,
+      "projected_reach": 350000
+    }
+  }
+]
