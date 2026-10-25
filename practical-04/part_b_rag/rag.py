@@ -196,6 +196,8 @@ def first_relevant_rank(ranked_chunk_ids: list[str], gold_docs: list[str]) -> in
 
 def summarise_ranks(ranks: list[int | None], ks=(1, 3, 5, 10)) -> dict:
     n = len(ranks)
+    if n == 0:  # e.g. a question type absent from a smoke-test subset
+        return {**{f"hit@{k}": None for k in ks}, "mrr@10": None, "n_queries": 0}
     out = {f"hit@{k}": round(sum(r is not None and r <= k for r in ranks) / n, 4) for k in ks}
     out["mrr@10"] = round(sum(1 / r for r in ranks if r is not None and r <= 10) / n, 4)
     out["n_queries"] = n

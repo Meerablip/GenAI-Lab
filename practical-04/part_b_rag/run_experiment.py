@@ -284,7 +284,7 @@ def main() -> None:
     docs = rag.load_documents(HERE / "knowledge_base")
     questions = load_json(HERE / "questions.json")
     if args.smoke:
-        questions = questions[:2] + questions[-1:]
+        questions = [questions[0], questions[8], questions[-1]]  # keyword, paraphrase, unanswerable
     log(f"{len(docs)} documents, {sum(len(d.text.split()) for d in docs)} words, {len(questions)} questions")
 
     result: dict = {"env": snapshot_env(PACKAGES), "primary_config": PRIMARY, "llm_name": LLM,
